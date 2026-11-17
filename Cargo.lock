@@ -1032,6 +1032,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-embed"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "egui",
+ "egui-wgpu",
+ "log",
+ "png 0.18.1",
+ "pollster 0.4.0",
+ "raw-window-handle",
+ "wgpu",
+]
+
+[[package]]
 name = "craft-eps"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=a499742a9389f47d10cdc61e4cdbf4e5f07f48cd#a499742a9389f47d10cdc61e4cdbf4e5f07f48cd"
@@ -6816,6 +6830,17 @@ dependencies = [
  "vectorcraft-three-d",
  "vectorcraft-trace",
  "wat",
+]
+
+[[package]]
+name = "vectorcraft-embed"
+version = "0.24.1"
+dependencies = [
+ "craft-embed",
+ "egui",
+ "serde_json",
+ "vectorcraft-engine",
+ "vectorcraft-ui-egui",
 ]
 
 [[package]]

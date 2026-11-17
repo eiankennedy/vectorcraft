@@ -200,6 +200,13 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("view.outline", "Outline", "Cmd+Y", "{} toggle Outline/Preview"),
     ("view.pixelPreview", "Pixel Preview", "Cmd+Alt+Y", "{}"),
     ("view.trimView", "Trim View", "", "{} toggle: hide everything outside the artboards"),
+    (
+        "view.workbench",
+        "Workbench Look",
+        "",
+        "{on?: bool, accent?: \"#rrggbb\"} Workbench's palette, square corners and its accent (default #FF6000); on omitted toggles → {on}",
+    ),
+    ("view.handsOff", "Hands Off", "", "{on?: bool} only the canvas with its artboards: no bars, toolbars or panels; on omitted toggles → {on}"),
     ("view.cornerWidget", "Hide Corner Widget", "", "{} toggle the live corner widgets"),
     (
         "view.snapToPixel",

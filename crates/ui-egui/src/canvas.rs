@@ -197,11 +197,21 @@ pub(crate) fn dragging_zoom(ctx: &egui::Context) -> bool {
 /// the document. Normal Screen Mode and Full Screen Mode with Menu Bar keep the scroll bars along
 /// the right and bottom edges; Full Screen and Presentation Mode have none.
 fn view_rects(app: &VectorcraftApp, outer: egui::Rect, ppp: f32) -> (egui::Rect, egui::Rect) {
-    let full = if app.ui.screen_mode < 2 { egui::Rect::from_min_max(outer.min, outer.max - vec2(SCROLL_BAR, SCROLL_BAR)) } else { outer };
-    let rect = if app.ui.view.rulers && app.ui.screen_mode < 3 { egui::Rect::from_min_max(full.min + vec2(RULER, RULER), full.max) } else { full };
+    // Hands off (`view.handsOff`) shows the art alone, without the rulers and scroll bars.
+    let full = if app.ui.screen_mode < 2 && !app.ui.hands_off {
+        egui::Rect::from_min_max(outer.min, outer.max - vec2(SCROLL_BAR, SCROLL_BAR))
+    } else {
+        outer
+    };
+    let rect = if rulers_shown(app) { egui::Rect::from_min_max(full.min + vec2(RULER, RULER), full.max) } else { full };
     // Dock layout can differ by fractions of a device pixel between fresh windows.
     // Use one pixel-aligned rectangle for drawing, inspection and pointer transforms.
     (full, rect.round_to_pixels(ppp))
+}
+
+/// Whether the rulers show: View › Rulers, outside Presentation Mode and hands off.
+fn rulers_shown(app: &VectorcraftApp) -> bool {
+    app.ui.view.rulers && app.ui.screen_mode < 3 && !app.ui.hands_off
 }
 
 /// Whether the user pressed a button or a key, typed, scrolled or zoomed in this frame: the
@@ -272,7 +282,7 @@ pub fn show(app: &mut VectorcraftApp, ui: &mut Ui) {
         return;
     }
     let outer = full;
-    let bars = app.ui.screen_mode < 2;
+    let bars = app.ui.screen_mode < 2 && !app.ui.hands_off;
     let (full, rect) = view_rects(app, outer, ui.ctx().pixels_per_point());
     app.canvas_rect = Some(rect);
     app.canvas_ui_zoom = ui.ctx().zoom_factor();
@@ -304,7 +314,7 @@ pub fn show(app: &mut VectorcraftApp, ui: &mut Ui) {
         ui.ctx().request_repaint_after_secs(secs as f32);
     }
     let hover_still = wait.is_none();
-    let origin_preview = if app.ui.view.rulers && app.ui.screen_mode < 3 { ruler_input(app, ui, full, rect, &xf) } else { rulers_hidden(app, ui) };
+    let origin_preview = if rulers_shown(app) { ruler_input(app, ui, full, rect, &xf) } else { rulers_hidden(app, ui) };
     crate::document_drag::drop_on_canvas(app, &resp, &xf);
     panel_drop(app, ui, &resp, &xf);
     // In Presentation Mode a right click or a long touch opens no context menu.
@@ -437,7 +447,7 @@ pub fn show(app: &mut VectorcraftApp, ui: &mut Ui) {
         rotate_view_dial(&painter, rect.center(), v.rotation, &t);
     }
 
-    if app.ui.view.rulers && app.ui.screen_mode < 3 {
+    if rulers_shown(app) {
         ruler_bands(app, ui, &xf, (full, rect), origin_preview, &t);
     }
     // The task bar is not drawn while the Simplify or Smooth slider shows.
@@ -445,7 +455,7 @@ pub fn show(app: &mut VectorcraftApp, ui: &mut Ui) {
     // It gives way to a drag, not to a click: hidden for the length of every press, it flashed as
     // each click picked another object (#4681).
     let dragging = app.session.tool_busy() && ui.input(|i| i.pointer.is_decidedly_dragging());
-    if app.ui.task_bar && !revolve_edit && !dragging && app.ui.screen_mode < 3 && !strip {
+    if app.ui.task_bar && !revolve_edit && !dragging && app.ui.screen_mode < 3 && !app.ui.hands_off && !strip {
         task_bar(app, ui, &xf);
     }
     if app.ui.screen_mode < 3 {

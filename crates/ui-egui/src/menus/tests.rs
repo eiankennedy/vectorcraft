@@ -1313,3 +1313,19 @@ fn window_menu_panels_are_sorted_alphabetically_in_active_language() {
 
     set_current(prev);
 }
+
+/// `view.handsOff` sets or toggles hands off; `view.workbench` refuses an accent that isn't
+/// `#rrggbb` and leaves the look as it was.
+#[test]
+fn hands_off_toggles_and_workbench_checks_its_accent() {
+    let mut app = VectorcraftApp::new(vectorcraft_engine::Session::new(), crate::Services::default());
+    assert!(!app.ui.hands_off);
+    assert_eq!(run_ui_command(&mut app, "view.handsOff", &json!({"on": true})).unwrap().unwrap(), json!({"on": true}));
+    assert_eq!(run_ui_command(&mut app, "view.handsOff", &json!({})).unwrap().unwrap(), json!({"on": false}));
+    assert!(run_ui_command(&mut app, "view.handsOff", &json!({"on": "yes"})).unwrap().is_err());
+    let before = theme::workbench_accent();
+    assert!(run_ui_command(&mut app, "view.workbench", &json!({"on": true, "accent": "orange"})).unwrap().is_err());
+    assert_eq!(theme::workbench_accent(), before);
+    assert_eq!(super::run::parse_hex("#FF6000"), Some(egui::Color32::from_rgb(0xFF, 0x60, 0x00)));
+    assert_eq!(super::run::parse_hex("ff6000"), None);
+}

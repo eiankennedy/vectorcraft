@@ -4,6 +4,7 @@ use super::slots::{recent_readable, recent_slot, saved_selection_name, saved_sel
 use super::state::{checked, selected_image};
 use super::ui_commands::UI_COMMANDS;
 use super::{Brightness, Face, SaveMode, Value, VectorcraftApp, io, json, next_zoom};
+use crate::theme;
 
 /// Canonical panel id for `window.panel`: a dock tab's or an icon panel's id or display label,
 /// matched case-insensitively (`"Layers"`, `"swatches"`, `"Color Guide"`), or a library panel's id
@@ -480,6 +481,38 @@ fn run_ui_part5(app: &mut VectorcraftApp, id: &str, p: &Value) -> Option<Result<
             };
             Ok(json!(app.ui.screen_mode))
         }
+        // Workbench's look: its palette, square corners and its accent, while VectorCraft runs in
+        // Workbench's panel. Every panel reads it through `Tokens`; the style follows next pass.
+        "view.workbench" => {
+            let on = match opt_bool(p, "on") {
+                Ok(on) => on.unwrap_or(theme::workbench_accent().is_none()),
+                Err(e) => return Some(Err(e)),
+            };
+            let accent = match p.get("accent") {
+                None | Some(Value::Null) => theme::workbench_accent(),
+                Some(v) => match v.as_str().and_then(parse_hex) {
+                    Some(c) => Some(c),
+                    None => return Some(Err("`accent` must be a #rrggbb colour".into())),
+                },
+            };
+            theme::set_workbench(on.then(|| accent.unwrap_or(egui::Color32::from_rgb(0xFF, 0x60, 0x00))));
+            app.canvas.key = None;
+            if let Some(ctx) = &app.ui_ctx {
+                ctx.request_repaint();
+            }
+            Ok(json!({"on": on}))
+        }
+        // Hands off: only the canvas with its artboards, no bars, toolbars or panels.
+        "view.handsOff" => match opt_bool(p, "on") {
+            Ok(on) => {
+                app.ui.hands_off = on.unwrap_or(!app.ui.hands_off);
+                if let Some(ctx) = &app.ui_ctx {
+                    ctx.request_repaint();
+                }
+                Ok(json!({"on": app.ui.hands_off}))
+            }
+            Err(e) => Err(e),
+        },
         // View › Rotate View and the status bar's angle menu: the view turns about the center of the
         // canvas to the angle, normalized as a Rotate View drag normalizes it.
         "view.rotate" => {
@@ -1119,4 +1152,15 @@ fn go_to_artboard(app: &mut VectorcraftApp, p: &Value) -> Result<Value, String> 
     crate::panels::artboards::select(app, to);
     crate::canvas::fit(app, "view.fitArtboard");
     Ok(json!({ "index": to }))
+}
+
+/// `#rrggbb` to a colour.
+pub(super) fn parse_hex(s: &str) -> Option<egui::Color32> {
+    let h = s.strip_prefix('#')?;
+    if h.len() != 6 {
+        return None;
+    }
+    let n = u32::from_str_radix(h, 16).ok()?;
+    let [_, r, g, b] = n.to_be_bytes();
+    Some(egui::Color32::from_rgb(r, g, b))
 }

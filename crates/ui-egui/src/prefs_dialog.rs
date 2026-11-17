@@ -270,6 +270,8 @@ struct Applied {
     tool_tips: bool,
     scrub: bool,
     bare_points: bool,
+    /// Workbench's look and its accent (`view.workbench`), which replaces the colours above.
+    workbench: Option<egui::Color32>,
 }
 
 /// User Interface › Canvas Color: the canvas around the artboards, or `None` to match the
@@ -307,6 +309,7 @@ fn apply(app: &mut VectorcraftApp, ctx: &egui::Context, force: bool) {
         tool_tips: p.show_tool_tips,
         scrub: p.scrub_numeric_fields,
         bare_points: p.numbers_without_units_are_points,
+        workbench: theme::workbench_accent(),
     };
     let id = applied_id();
     let prev: Option<Applied> = ctx.data(|d| d.get_temp::<Option<Applied>>(id)).flatten();

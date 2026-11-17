@@ -599,6 +599,11 @@ pub struct UiState {
     /// Presentation Mode came back on restart with no way out).
     #[serde(skip)]
     pub screen_mode: u8,
+    /// Hands off: only the canvas with its artboards is drawn (no title bar, menus, Control bar,
+    /// toolbars, panels, document tabs, rulers, scroll bars or status bar), for when an agent does
+    /// the work and the person watches. Set with `view.handsOff`. Not saved.
+    #[serde(skip)]
+    pub hands_off: bool,
     /// Window › Arrange › Tile: the open documents share the document area, one pane each, until
     /// Consolidate All Windows. Not saved: the reference app does not save windows with a document.
     #[serde(skip)]
@@ -1206,6 +1211,7 @@ impl Default for UiState {
             palette_open: false,
             palette_query: String::new(),
             screen_mode: 0,
+            hands_off: false,
             tiled: false,
             floating: Vec::new(),
             tab_document: None,

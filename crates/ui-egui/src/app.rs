@@ -504,7 +504,7 @@ impl VectorcraftApp {
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, t.pasteboard);
         self.canvas.windows.strip = None;
         self.canvas.windows.drops.clear();
-        if self.ui.screen_mode < 3 {
+        if self.ui.screen_mode < 3 && !self.ui.hands_off {
             chrome::doc_tabs(self, ui);
         }
         self.canvas.windows.area = Some(ui.available_rect_before_wrap());
@@ -528,6 +528,7 @@ impl VectorcraftApp {
         }
         // Over the canvas inside the rulers, so the rulers and scroll bars stay uncovered.
         if self.ui.screen_mode < 3
+            && !self.ui.hands_off
             && !floats
             && !menus::home_showing(self)
             && let Some(area) = self.canvas_rect
@@ -580,46 +581,57 @@ impl VectorcraftApp {
         // A selection move released over a panel ends before any panel sees the release (#2826).
         canvas::release_over_panel(self, &ctx);
         let t = theme::Tokens::get(&ctx);
-        if self.ui.screen_mode < 2 {
-            chrome::app_bar(self, ui);
-            if self.ui.control_bar {
-                chrome::control_bar(self, ui);
-            }
-        }
-        if self.ui.status_bar && self.ui.screen_mode < 3 {
-            chrome::status_bar(self, ui);
-        }
-        if self.ui.help_bar && self.ui.screen_mode < 3 {
-            chrome::hint_bar(self, ui);
-        }
-        if (self.ui.screen_mode >= 3 || (!self.ui.status_bar && !self.ui.help_bar))
-            && !(self.ui.control_bar && self.ui.control_bar_bottom && !self.ui.control_bar_floating && self.ui.screen_mode < 2)
-        {
-            // Keeps the previous frame's value valid for menus drawn above, before the bars. A
-            // Control bar docked at the bottom has set it to the bar's top; a floating one sets none.
+        if self.ui.hands_off {
+            // Hands off: the canvas with its artboards alone, no bars, toolbars or panels. The
+            // dialogs and windows below still show.
             widgets::set_menu_floor(&ctx, ctx.content_rect().bottom());
-        }
-        if self.ui.toolbar && self.ui.screen_mode < 3 {
-            tools_float::set_window_dock_zone(&ctx, ui.available_rect_before_wrap());
-        }
-        if !self.ui.tools_beside_canvas {
-            // A canvas-edge target left from before the setting was turned off docks nothing.
             tools_float::clear_canvas_dock_zone(&ctx);
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.pasteboard)).show(ui, |ui| self.canvas_area(ui));
+        } else {
+            if self.ui.screen_mode < 2 {
+                chrome::app_bar(self, ui);
+                if self.ui.control_bar {
+                    chrome::control_bar(self, ui);
+                }
+            }
+            if self.ui.status_bar && self.ui.screen_mode < 3 {
+                chrome::status_bar(self, ui);
+            }
+            if self.ui.help_bar && self.ui.screen_mode < 3 {
+                chrome::hint_bar(self, ui);
+            }
+            if (self.ui.screen_mode >= 3 || (!self.ui.status_bar && !self.ui.help_bar))
+                && !(self.ui.control_bar && self.ui.control_bar_bottom && !self.ui.control_bar_floating && self.ui.screen_mode < 2)
+            {
+                // Keeps the previous frame's value valid for menus drawn above, before the bars. A
+                // Control bar docked at the bottom has set it to the bar's top; a floating one sets none.
+                widgets::set_menu_floor(&ctx, ctx.content_rect().bottom());
+            }
+            if self.ui.toolbar && self.ui.screen_mode < 3 {
+                tools_float::set_window_dock_zone(&ctx, ui.available_rect_before_wrap());
+            }
+            if !self.ui.tools_beside_canvas {
+                // A canvas-edge target left from before the setting was turned off docks nothing.
+                tools_float::clear_canvas_dock_zone(&ctx);
+            }
+            // Beside the canvas, docked Tools draws inside the canvas panel (`toolbar::show_beside_canvas`).
+            // So does Tools docked on the right, left of the panels.
+            if self.ui.toolbar
+                && self.ui.screen_mode < 3
+                && ((!self.ui.tools_beside_canvas && !self.ui.toolbar_right) || self.ui.toolbar_pos.is_some())
+            {
+                toolbar::show(self, ui);
+            } else if !self.ui.toolbar && self.ui.screen_mode < 3 && self.ui.tab_hid.is_none() {
+                // Window › Tools hides the Tools panel alone; Tab hides the toolbars made with New
+                // Toolbar too.
+                toolbar::show_custom(self, ui.ctx());
+            }
+            // The lanes along the window's edges where toolbars made with New Toolbar dock.
+            crate::custom_toolbars::lanes(self, ui);
+            panels::library_panel::tidy(self);
+            // The canvas and the panels: one docking layout. Tab hides the panels but not the canvas.
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.pasteboard)).show(ui, |ui| panel_docking::show(self, ui));
         }
-        // Beside the canvas, docked Tools draws inside the canvas panel (`toolbar::show_beside_canvas`).
-        // So does Tools docked on the right, left of the panels.
-        if self.ui.toolbar && self.ui.screen_mode < 3 && ((!self.ui.tools_beside_canvas && !self.ui.toolbar_right) || self.ui.toolbar_pos.is_some()) {
-            toolbar::show(self, ui);
-        } else if !self.ui.toolbar && self.ui.screen_mode < 3 && self.ui.tab_hid.is_none() {
-            // Window › Tools hides the Tools panel alone; Tab hides the toolbars made with New
-            // Toolbar too.
-            toolbar::show_custom(self, ui.ctx());
-        }
-        // The lanes along the window's edges where toolbars made with New Toolbar dock.
-        crate::custom_toolbars::lanes(self, ui);
-        panels::library_panel::tidy(self);
-        // The canvas and the panels: one docking layout. Tab hides the panels but not the canvas.
-        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.pasteboard)).show(ui, |ui| panel_docking::show(self, ui));
         panels::learn::locate::tidy(self, &ctx);
         crate::doc_windows::show(self, &ctx);
         dialogs::show(self, &ctx);

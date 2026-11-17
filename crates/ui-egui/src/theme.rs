@@ -1,9 +1,27 @@
 //! Design tokens (four UI brightness levels), fonts and egui style.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Stroke, TextStyle, Visuals};
 use serde::{Deserialize, Serialize};
+
+/// Workbench's look (dark, flat, its mode's accent) when VectorCraft runs inside Workbench's panel:
+/// 0 = off, else `0x01RRGGBB`. Set by the `view.workbench` command.
+static WORKBENCH: AtomicU32 = AtomicU32::new(0);
+
+/// Turn Workbench's look on with an accent colour, or off with `None`.
+pub fn set_workbench(accent: Option<Color32>) {
+    let v = accent.map_or(0, |c| 0x0100_0000 | (u32::from(c.r()) << 16) | (u32::from(c.g()) << 8) | u32::from(c.b()));
+    WORKBENCH.store(v, Ordering::Relaxed);
+}
+
+/// The accent Workbench set, when its look is on.
+pub fn workbench_accent() -> Option<Color32> {
+    let v = WORKBENCH.load(Ordering::Relaxed);
+    let [_, r, g, b] = v.to_be_bytes();
+    (v != 0).then(|| Color32::from_rgb(r, g, b))
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Brightness {
@@ -422,8 +440,52 @@ impl Tokens {
         }
     }
 
-    /// The tokens for `b` in `scheme`; Modern takes `accent`, Classic has its own blue.
+    /// Workbench's palette: near-black surfaces, hairline borders, warm white text, square
+    /// corners and its mode's `accent` for what is on, chosen or focused.
+    pub fn workbench(accent: Color32) -> Self {
+        let hex = |s: u32| Color32::from_rgb((s >> 16) as u8, (s >> 8) as u8, s as u8);
+        let (chrome, card, border, divider, sunk) = (hex(0x121316), hex(0x18191c), hex(0x333436), hex(0x2a2b2d), hex(0x060607));
+        let (text, dim, faint, hover, pressed) = (hex(0xf2f1ee), hex(0x989998), hex(0x838485), hex(0x1c1d20), hex(0x26272a));
+        Tokens {
+            dark: true,
+            app_bar: chrome,
+            panel: card,
+            panel_darker: chrome,
+            input: sunk,
+            input_border: border,
+            border,
+            divider,
+            text,
+            text_dim: dim,
+            text_disabled: faint,
+            icon: text,
+            hover,
+            tool_active: pressed,
+            accent,
+            accent_strong: accent,
+            row_selected: pressed,
+            pasteboard: sunk,
+            ruler: chrome,
+            ruler_tick: dim,
+            measure_bg: Color32::from_rgba_unmultiplied(0x18, 0x19, 0x1c, 235),
+            button: pressed,
+            radius: 0,
+            text_strong: text,
+            tab_strip: chrome,
+            button_border: border,
+            selection: accent,
+            anchor_selected: accent,
+            flyout_active: accent,
+            ..Self::for_brightness(Brightness::Dark)
+        }
+    }
+
+    /// The tokens for `b` in `scheme`; Modern takes `accent`, Classic has its own blue. Workbench's
+    /// look, while it is on, replaces both.
     pub fn for_scheme(scheme: Scheme, b: Brightness, accent: Accent) -> Self {
+        if let Some(a) = workbench_accent() {
+            return Self::workbench(a);
+        }
         match scheme {
             Scheme::Modern => Self::for_brightness(b).with_accent(accent),
             Scheme::Classic => Self::classic(b),
@@ -451,6 +513,9 @@ impl Tokens {
     }
 
     pub fn get(ctx: &egui::Context) -> Tokens {
+        if let Some(a) = workbench_accent() {
+            return Self::workbench(a);
+        }
         ctx.data(|d| d.get_temp::<Tokens>(egui::Id::NULL)).unwrap_or_else(|| Tokens::for_brightness(Brightness::default()))
     }
     pub fn cr(&self) -> CornerRadius {
@@ -467,7 +532,7 @@ pub fn card<R>(ui: &mut egui::Ui, t: &Tokens, margin: egui::Margin, body: impl F
         .show(ui, |ui| {
             egui::Frame::NONE
                 .fill(t.panel)
-                .corner_radius(CARD_RADIUS)
+                .corner_radius(if workbench_accent().is_some() { 0 } else { CARD_RADIUS })
                 .show(ui, |ui| {
                     ui.set_min_size(ui.available_size());
                     body(ui)
@@ -620,8 +685,9 @@ pub fn apply_with(ctx: &egui::Context, b: Brightness, accent: Accent, scheme: Sc
     v.extreme_bg_color = t.input;
     v.faint_bg_color = t.panel_darker;
     v.window_stroke = Stroke::new(1.0, t.border);
-    v.window_corner_radius = CornerRadius::same(10);
-    v.menu_corner_radius = CornerRadius::same(8);
+    let flat = workbench_accent().is_some(); // Workbench is square-cornered
+    v.window_corner_radius = CornerRadius::same(if flat { 0 } else { 10 });
+    v.menu_corner_radius = CornerRadius::same(if flat { 0 } else { 8 });
     v.selection.bg_fill = t.accent.gamma_multiply(0.55);
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent;
